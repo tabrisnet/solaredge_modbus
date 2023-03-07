@@ -71,6 +71,9 @@ def fetchData(inverter):
             "fields": {}
         }
 
+        if ( ( int(meter_values["status"]) == 0 ) and ( int(meter_values["temperature"]) == int(32) ) ):
+        # ignore what looks like a periodic reboot
+            continue
         for k, v in meter_values.items():
             if (isinstance(v, int) or isinstance(v, float)) and "_scale" not in k:
                 k_split = k.split("_")
@@ -147,7 +150,7 @@ if __name__ == "__main__":
             client = InfluxDBClient(
                 url= f"http://{args.influx_host}:{args.influx_port}",
                 org="surrealnet",
-                token=args.influx_token
+                token=args.influx_token,
             )
 
         #client.switch_database(args.influx_db)
