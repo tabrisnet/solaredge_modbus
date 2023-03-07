@@ -4,7 +4,8 @@ import argparse
 import sys
 import time
 
-from influxdb import InfluxDBClient
+from influxdb_client import InfluxDBClient
+from influxdb_client .client.write_api import SYNCHRONOUS
 import requests
 import solaredge_modbus
 
@@ -13,6 +14,12 @@ def fetchData(inverter):
     values = inverter.read_all()
 
     current_time = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+    if not values: # this is a daemon, try to keep going
+    # FIXME: add a logged error
+        return
+    if not values["c_model"]:
+        return
 
     inverter_data = {
         "measurement": "inverter",
@@ -42,8 +49,10 @@ def fetchData(inverter):
 
     json_body.append(inverter_data)
 
-    meters = inverter.meters()
-    batteries = inverter.batteries()
+    #meters = inverter.meters()
+    #batteries = inverter.batteries()
+    meters = {}
+    batteries = {}
     for meter, params in meters.items():
         meter_values = params.read_all()
 
@@ -117,22 +126,32 @@ if __name__ == "__main__":
     argparser.add_argument("--influx_host", type=str, default="localhost", help="InfluxDB host")
     argparser.add_argument("--influx_port", type=int, default=8086, help="InfluxDB port")
     argparser.add_argument("--influx_db", type=str, default="solaredge", help="InfluxDB database")
-    argparser.add_argument("--influx_user", type=str, help="InfluxDB username")
-    argparser.add_argument("--influx_pass", type=str, help="InfluxDB password")
+    #argparser.add_argument("--influx_user", type=str, help="InfluxDB username")
+    #argparser.add_argument("--influx_pass", type=str, help="InfluxDB password")
+    argparser.add_argument("--influx_token", type=str, help="InfluxDB auth token")
     args = argparser.parse_args()
 
     try:
         if args.influx_user and args.influx_pass:
             client = InfluxDBClient(
-                host=args.influx_host,
-                port=args.influx_port,
-                username=args.influx_user,
-                password=args.influx_pass
+                url= f"http://{host}:{port}",
+                #host=args.influx_host,
+                #port=args.influx_port,
+                org="surrealnet",
+                token=args.influx_token,
+                #username=args.influx_user,
+                #password=args.influx_pass
             )
         else:
-            client = InfluxDBClient(host=args.influx_host, port=args.influx_port)
+            #client = InfluxDBClient(host=args.influx_host, port=args.influx_port)
+            client = InfluxDBClient(
+                url= f"http://{args.influx_host}:{args.influx_port}",
+                org="surrealnet",
+                token=args.influx_token
+            )
 
-        client.switch_database(args.influx_db)
+        #client.switch_database(args.influx_db)
+        influx_write_api = client.write_api(write_options=SYNCHRONOUS)
     except (ConnectionRefusedError, requests.exceptions.ConnectionError):
         print(f"database connection failed: {args.influx_host,}:{args.influx_port}/{args.influx_db}")
         sys.exit()
@@ -155,6 +174,9 @@ if __name__ == "__main__":
         json_body = []
         for inverter in inverters:
             fetchData(inverter)
-        client.write_points(json_body)
-        time.sleep(args.interval - (time.time() - startTime))
+        #client.write_points(json_body)
+        influx_write_api.write(bucket=args.influx_db, record=json_body)
+        sleep_interval = args.interval - (time.time() - startTime)
+        if(sleep_interval > 0):
+            time.sleep(sleep_interval)
 
