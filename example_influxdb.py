@@ -9,6 +9,8 @@ from influxdb_client .client.write_api import SYNCHRONOUS
 import requests
 import solaredge_modbus
 
+previous_values = {}
+
 def fetchData(inverter):
     values = {}
     values = inverter.read_all()
@@ -35,6 +37,10 @@ def fetchData(inverter):
         "fields": {}
     }
 
+    if ( ( int(values["status"]) <= 2 ) and ( int(values["status"]) >= 0 ) ):
+        if( ( int(float(values["temperature"])) == int(0) ) or ( int(float(values["l1_voltage"])) == int(0) ) ):
+        # ignore what looks like a periodic reboot
+            return
     for k, v in values.items():
         if (isinstance(v, int) or isinstance(v, float)) and "_scale" not in k:
             k_split = k.split("_")
@@ -71,9 +77,15 @@ def fetchData(inverter):
             "fields": {}
         }
 
-        if ( ( int(meter_values["status"]) == 0 ) and ( int(meter_values["temperature"]) == int(32) ) ):
-        # ignore what looks like a periodic reboot
-            continue
+        if ( ( int(meter_values["status"]) <= 2 ) and ( int(meter_values["status"]) >= 0 ) ):
+            if( ( int(float(meter_values["temperature"])) == int(0) ) or ( int(float(meter_values["l1_voltage"])) == int(0) ) ):
+            # ignore what looks like a periodic reboot
+                continue
+        #elif ( ! (isinstance(meter_values["temperature"], int) or isinstance(meter_values["temperature"], float)):
+        #    continue
+        #elif ( ! (isinstance(meter_values["l1_voltage"], int) or isinstance(meter_values["l1_voltage"], float)):
+        #    continue
+        #elif ( (values["c_serialnumber"] in previous_values.keys()) and  ):
         for k, v in meter_values.items():
             if (isinstance(v, int) or isinstance(v, float)) and "_scale" not in k:
                 k_split = k.split("_")
@@ -87,6 +99,10 @@ def fetchData(inverter):
                 meter_data["fields"].update({k: float(v * (10 ** scale))})
 
         json_body.append(meter_data)
+        # cache previous values, so we can skip if
+        previous_values[meter_data["tags"]["c_serialnumber"]] = meter_data
+
+
 
     for battery, params in batteries.items():
         battery_values = params.read_all()
@@ -129,13 +145,13 @@ if __name__ == "__main__":
     argparser.add_argument("--influx_host", type=str, default="localhost", help="InfluxDB host")
     argparser.add_argument("--influx_port", type=int, default=8086, help="InfluxDB port")
     argparser.add_argument("--influx_db", type=str, default="solaredge", help="InfluxDB database")
-    #argparser.add_argument("--influx_user", type=str, help="InfluxDB username")
-    #argparser.add_argument("--influx_pass", type=str, help="InfluxDB password")
+    argparser.add_argument("--influx_user", type=str, help="InfluxDB username")
+    argparser.add_argument("--influx_pass", type=str, help="InfluxDB password")
     argparser.add_argument("--influx_token", type=str, help="InfluxDB auth token")
     args = argparser.parse_args()
 
     try:
-        if args.influx_user and args.influx_pass:
+        if args.influx_user and args.influx:
             client = InfluxDBClient(
                 url= f"http://{host}:{port}",
                 #host=args.influx_host,
