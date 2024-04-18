@@ -19,36 +19,28 @@ previous_values = {}
 
 mqtt_topic_prefix = "solaredge_test"
 
+unitclass_table = [ # order unfortunately matters
+    { "re": "voltage",     "class": "voltage",        "unit": "V" },
+    { "re": "current",     "class": "current",        "unit": "A" },
+    { "re": "apparent",    "class": "apparent_power", "unit": "VA" },
+    { "re": "factor",      "class": "power_factor",   "unit": "%" },
+    { "re": "power",       "class": "power",          "unit": "W" },
+    { "re": "temperature", "class": "power",          "unit": chr(176)+"C" },
+    { "re": "frequency",   "class": "frequency",      "unit": "Hz" },
+]
+for idx,e in enumerate(unitclass_table):
+    e = unitclass_table[idx]
+    e["re"] = re.compile(e["re"])
+
 def ha_mqtt_devclass(name):
-    if re.search("voltage", name):
-        return "voltage"
-    if re.search("current", name):
-        return "current"
-    if re.search("apparent", name):
-        return "apparent_power"
-    if re.search("factor", name):
-        return "power_factor"
-    if re.search("power", name):
-        return "power"
-    if re.search("temperature", name):
-        return "temperature"
-    if re.search("frequency", name):
-      return "frequency"
+    for e in unitclass_table:
+        if re.search(e["re"], name):
+            return e["class"]
+
 def ha_mqtt_devunit(name):
-    if re.search("voltage", name):
-        return "V"
-    if re.search("current", name):
-        return "A"
-    if re.search("(reactive|apparent)", name):
-        return "VA"
-    if re.search("power_factor", name):
-        return "%"
-    if re.search("power", name):
-        return "W"
-    if re.search("temperature", name):
-        return chr(176)+"C"
-    if re.search("frequency", name):
-      return "Hz"
+    for e in unitclass_table:
+        if re.search(e["re"], name):
+            return e["unit"]
 
 def fetchData(inverter):
     values = {}
