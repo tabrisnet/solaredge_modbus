@@ -22,10 +22,11 @@ mqtt_topic_prefix = "solaredge_test"
 unitclass_table = [ # order unfortunately matters
     { "re": "voltage",     "class": "voltage",        "unit": "V" },
     { "re": "current",     "class": "current",        "unit": "A" },
+    { "re": "reactive",    "class": "reactive_power", "unit": "VA" },
     { "re": "apparent",    "class": "apparent_power", "unit": "VA" },
     { "re": "factor",      "class": "power_factor",   "unit": "%" },
     { "re": "power",       "class": "power",          "unit": "W" },
-    { "re": "temperature", "class": "power",          "unit": chr(176)+"C" },
+    { "re": "temperature", "class": "temperature",    "unit": chr(176)+"C" },
     { "re": "frequency",   "class": "frequency",      "unit": "Hz" },
     { "re": "time",        "class": "duration",       "unit": "s" },
 ]
@@ -87,7 +88,7 @@ def fetchData(inverter):
 
             inverter_data["fields"].update({ k: round( float(v * (10 ** scale)), 8 ) })
 
-    inverter_data["fields"]["retrieval_time"] = time.time() - start_time
+    inverter_data["fields"]["retrieval_time"] = round(time.time() - start_time, 6)
 
     device_mqtt_data = copy.deepcopy(inverter_data)
     device_mqtt_topic = "{0}/{1}".format(mqtt_topic_prefix, values['c_serialnumber'])
