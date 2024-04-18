@@ -27,6 +27,7 @@ unitclass_table = [ # order unfortunately matters
     { "re": "power",       "class": "power",          "unit": "W" },
     { "re": "temperature", "class": "power",          "unit": chr(176)+"C" },
     { "re": "frequency",   "class": "frequency",      "unit": "Hz" },
+    { "re": "time",        "class": "duration",       "unit": "s" },
 ]
 for idx,e in enumerate(unitclass_table):
     e = unitclass_table[idx]
@@ -43,6 +44,8 @@ def ha_mqtt_devunit(name):
             return e["unit"]
 
 def fetchData(inverter):
+    start_time   = time.time()
+
     values = {}
     values = inverter.read_all()
 
@@ -84,6 +87,8 @@ def fetchData(inverter):
 
             inverter_data["fields"].update({ k: round( float(v * (10 ** scale)), 8 ) })
 
+    inverter_data["fields"]["retrieval_time"] = time.time() - start_time
+
     device_mqtt_data = copy.deepcopy(inverter_data)
     device_mqtt_topic = "{0}/{1}".format(mqtt_topic_prefix, values['c_serialnumber'])
     device_mqtt_data = device_mqtt_data["fields"]
@@ -96,7 +101,7 @@ def fetchData(inverter):
         "power_apparent", "power_reactive", "power_factor", "power_ac",
         "frequency",
         "voltage_dc", "power_dc",
-        "temperature"]
+        "temperature", "retrieval_time"]
     for ha_entity in ha_entities:
         device_mqtt_metadata_topic_prefix = "homeassistant/sensor/solaredge_" + values['c_serialnumber']
         device_mqtt_metadata_topic = device_mqtt_metadata_topic_prefix + "/" + ha_entity + "/config"
@@ -274,13 +279,13 @@ if __name__ == "__main__":
         inverters.append(secondary_inverter)
 
     while True:
-        startTime = time.time()
+        start_time = time.time()
         json_body = []
         for inverter in inverters:
             fetchData(inverter)
         #client.write_points(json_body)
         influx_write_api.write(bucket=args.influx_db, record=json_body)
-        sleep_interval = args.interval - (time.time() - startTime)
+        sleep_interval = args.interval - (time.time() - start_time)
         if(sleep_interval <= 0):
             # skip the next run, but process MQTT
             sleep_interval += args.interval
