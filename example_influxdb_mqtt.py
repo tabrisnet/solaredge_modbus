@@ -20,34 +20,34 @@ previous_values = {}
 mqtt_topic_prefix = "solaredge_test"
 
 def ha_mqtt_devclass(name):
-    if re.match("voltage", name):
+    if re.search("voltage", name):
         return "voltage"
-    if re.match("current", name):
+    if re.search("current", name):
         return "current"
-    if re.match("apparent", name):
+    if re.search("apparent", name):
         return "apparent_power"
-    if re.match("factor", name):
+    if re.search("factor", name):
         return "power_factor"
-    if re.match("power", name):
+    if re.search("power", name):
         return "power"
-    if re.match("temperature", name):
+    if re.search("temperature", name):
         return "temperature"
-    if re.match("frequency", name):
+    if re.search("frequency", name):
       return "frequency"
 def ha_mqtt_devunit(name):
-    if re.match("voltage", name):
+    if re.search("voltage", name):
         return "V"
-    if re.match("current", name):
+    if re.search("current", name):
         return "A"
-    if re.match("(reactive|apparent)", name):
+    if re.search("(reactive|apparent)", name):
         return "VA"
-    if re.match("power_factor", name):
+    if re.search("power_factor", name):
         return "%"
-    if re.match("power", name):
+    if re.search("power", name):
         return "W"
-    if re.match("temperature", name):
-        return "øC"
-    if re.match("frequency", name):
+    if re.search("temperature", name):
+        return chr(176)+"C"
+    if re.search("frequency", name):
       return "Hz"
 
 def fetchData(inverter):
