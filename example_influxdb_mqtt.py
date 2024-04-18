@@ -25,6 +25,7 @@ unitclass_table = [ # order unfortunately matters
     { "re": "reactive",    "class": "reactive_power", "unit": "VA" },
     { "re": "apparent",    "class": "apparent_power", "unit": "VA" },
     { "re": "factor",      "class": "power_factor",   "unit": "%" },
+    { "re": "efficiency",  "class": None,             "unit": "%" },
     { "re": "power",       "class": "power",          "unit": "W" },
     { "re": "temperature", "class": "temperature",    "unit": chr(176)+"C" },
     { "re": "frequency",   "class": "frequency",      "unit": "Hz" },
@@ -86,9 +87,14 @@ def fetchData(inverter):
             elif f"{k}_scale" in values:
                 scale = values[f"{k}_scale"]
 
-            inverter_data["fields"].update({ k: round( float(v * (10 ** scale)), 8 ) })
+            inverter_data["fields"].update({ k: round( float(v * (10 ** scale)), 4 ) })
 
-    inverter_data["fields"]["retrieval_time"] = round(time.time() - start_time, 6)
+    fields = inverter_data["fields"]
+    fields["retrieval_time"] = round(time.time() - start_time, 6)
+    if(fields["power_dc"] > 0):
+        fields["efficiency"] = 100*round(fields["power_ac"] / fields["power_dc"], 4)
+    else:
+        fields["efficiency"] = float(0)
 
     device_mqtt_data = copy.deepcopy(inverter_data)
     device_mqtt_topic = "{0}/{1}".format(mqtt_topic_prefix, values['c_serialnumber'])
@@ -100,7 +106,7 @@ def fetchData(inverter):
 
     ha_entities = [ "l1_current", "l1_voltage", #FIXME: 3-phase needs l1, l2, l3
         "power_apparent", "power_reactive", "power_factor", "power_ac",
-        "frequency",
+        "frequency", "efficiency",
         "voltage_dc", "power_dc",
         "temperature", "retrieval_time"]
     for ha_entity in ha_entities:
