@@ -263,9 +263,10 @@ if __name__ == "__main__":
         print(f"database connection failed: {args.influx_host,}:{args.influx_port}/{args.influx_db}")
         sys.exit()
 
-    mqttc.username_pw_set(args.mqtt_user, args.mqtt_pass)
-    mqttc.connect(args.mqtt_host, 1883, 5)
-    mqttc.loop(5)
+    if(args.mqtt_host and args.mqtt_user and args.mqtt_pass):
+        mqttc.username_pw_set(args.mqtt_user, args.mqtt_pass)
+        mqttc.connect(args.mqtt_host, 1883, 5)
+        mqttc.loop(5)
 
     unit_list = args.unit.split(",")
     master_unit = unit_list.pop(0)
@@ -291,12 +292,12 @@ if __name__ == "__main__":
         if(sleep_interval <= 0):
             # skip the next run, but process MQTT
             sleep_interval += args.interval
-        if(sleep_interval > 0):
-            #print(f"running MQTT loop for {sleep_interval}")
-            mqttc.loop(timeout=sleep_interval)
-            #time.sleep(sleep_interval)
-        # recalculate sleep_interval after MQTT is done
-        sleep_interval = args.interval - (time.time() - startTime)
+        if(args.mqtt_host and args.mqtt_user and args.mqtt_pass):
+            if(sleep_interval > 0):
+                #print(f"running MQTT loop for {sleep_interval}")
+                mqttc.loop(timeout=sleep_interval)
+                # recalculate sleep_interval after MQTT is done
+                sleep_interval = args.interval - (time.time() - start_time)
         if(sleep_interval > 0):
             time.sleep(sleep_interval)
 
