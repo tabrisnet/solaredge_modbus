@@ -46,7 +46,7 @@ def ha_mqtt_devunit(name):
             return e["unit"]
 
 def fetchData(inverter):
-    start_time   = time.time()
+    fetch_start_time = time.time()
 
     values = {}
     values = inverter.read_all()
@@ -90,7 +90,7 @@ def fetchData(inverter):
             inverter_data["fields"].update({ k: round( float(v * (10 ** scale)), 4 ) })
 
     fields = inverter_data["fields"]
-    fields["retrieval_time"] = round(time.time() - start_time, 6)
+    fields["retrieval_time"] = round(time.time() - fetch_start_time, 6)
     if(fields["power_dc"] > 0):
         fields["efficiency"] = 100*round(fields["power_ac"] / fields["power_dc"], 4)
     else:
