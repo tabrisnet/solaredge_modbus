@@ -53,11 +53,18 @@ def fetchData(inverter):
 
     current_time = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
+    expected_meta_keys = [ "c_manufacturer", "c_model", "c_version", "c_serialnumber", "c_deviceaddress", "c_sunspec_did" ]
     if not values: # this is a daemon, try to keep going
     # FIXME: add a logged error
+        print("expected values, had no values")
         return
-    if not values["c_model"]:
-        return
+    if not (set(expected_meta_keys) <= values.keys()):
+        print("skipping, missing keys")
+        print(json.dumps(values))
+        sys.exit(0)
+    else:
+        print("processing")
+        print(json.dumps(values))
 
     inverter_data = {
         "measurement": "inverter",
@@ -76,6 +83,7 @@ def fetchData(inverter):
     if ( ( int(values["status"]) <= 2 ) and ( int(values["status"]) >= 0 ) ):
         if( ( int(float(values["temperature"])) == int(0) ) or ( int(float(values["l1_voltage"])) == int(0) ) ):
         # ignore what looks like a periodic reboot
+            print ("skipping periodic reboot")
             return
     for k, v in values.items():
         if (isinstance(v, int) or isinstance(v, float)) and "_scale" not in k:
@@ -99,9 +107,11 @@ def fetchData(inverter):
     device_mqtt_data = copy.deepcopy(inverter_data)
     device_mqtt_topic = "{0}/{1}".format(mqtt_topic_prefix, values['c_serialnumber'])
     device_mqtt_data = device_mqtt_data["fields"]
+    device_mqtt_data['c_version'] = values['c_version']
     for uselessKey in ["c_did", "c_length", "c_sunspec_did", "c_sunspec_length"]:
         del device_mqtt_data[uselessKey]
     json_string = json.dumps(device_mqtt_data)
+    print("publishing {}: {}".format(device_mqtt_topic, json_string))
     mqttc.publish(device_mqtt_topic, json_string)
 
     ha_entities = [ "l1_current", "l1_voltage", #FIXME: 3-phase needs l1, l2, l3
@@ -126,6 +136,7 @@ def fetchData(inverter):
     #print(json_string)
     json_body.append(inverter_data)
 
+"""
     #meters = inverter.meters()
     #batteries = inverter.batteries()
     meters = {}
@@ -172,9 +183,9 @@ def fetchData(inverter):
         json_body.append(meter_data)
         # cache previous values, so we can skip if
         previous_values[meter_data["tags"]["c_serialnumber"]] = meter_data
+"""
 
-
-
+"""
     for battery, params in batteries.items():
         battery_values = params.read_all()
 
@@ -202,7 +213,7 @@ def fetchData(inverter):
                 battery_data["fields"].update({k: v})
 
         json_body.append(battery_data)
-
+"""
 
 
 inverters = []
@@ -216,7 +227,8 @@ def on_mqtt_connection(client, userdata, flags, reason_code):
         sys.exit()
 
 def on_mqtt_disconnect(client, userdata, reason_code):
-    print(f"MQTT disconnected: {reason_code}")
+    reason = reason_code.value
+    print(f"MQTT disconnected: {reason}")
     sys.exit()
 
 mqttc = mqttClient.Client() #(mqttClient.CallbackAPIVersion.VERSION1)
@@ -269,7 +281,7 @@ if __name__ == "__main__":
 
     if(args.mqtt_host and args.mqtt_user and args.mqtt_pass):
         mqttc.username_pw_set(args.mqtt_user, args.mqtt_pass)
-        mqttc.connect(args.mqtt_host, 1883, 5)
+        mqttc.connect(host=args.mqtt_host, port=1883, keepalive=args.interval*2)
         mqttc.loop(5)
 
     unit_list = args.unit.split(",")
@@ -290,18 +302,23 @@ if __name__ == "__main__":
         json_body = []
         for inverter in inverters:
             fetchData(inverter)
+            mqttc.loop(timeout=0.1)
         #client.write_points(json_body)
         influx_write_api.write(bucket=args.influx_db, record=json_body)
-        sleep_interval = args.interval - (time.time() - start_time)
-        if(sleep_interval <= 0):
+        calc_sleep_interval = args.interval - (time.time() - start_time)
+        if(calc_sleep_interval <= 0):
             # skip the next run, but process MQTT
-            sleep_interval += args.interval
-        if(args.mqtt_host and args.mqtt_user and args.mqtt_pass):
-            if(sleep_interval > 0):
-                #print(f"running MQTT loop for {sleep_interval}")
-                mqttc.loop(timeout=sleep_interval)
-                # recalculate sleep_interval after MQTT is done
-                sleep_interval = args.interval - (time.time() - start_time)
-        if(sleep_interval > 0):
-            time.sleep(sleep_interval)
+            print("time left in interval({}) negative, working to skip".format(calc_sleep_interval))
+            calc_sleep_interval += args.interval
+            while((args.interval - (time.time() - start_time) > 0)):
+                mqttc.loop(timeout=1)
+        else:
+            print("time left in interval: {}".format(calc_sleep_interval))
+            #mqttc.loop(timeout=calc_sleep_interval)
+            while((args.interval - (time.time() - start_time) > 0)):
+                #print("debug: {}".format(args.interval - (time.time() - start_time)))
+                time_left = args.interval - (time.time() - start_time)
+                mqtt_timeout = 1 if time_left > 1 else time_left
+                mqtt_rc = mqttc.loop(timeout=mqtt_timeout)
+                #print("debug: mqtt_rc({}): {}".format(mqtt_rc, time_left))
 
